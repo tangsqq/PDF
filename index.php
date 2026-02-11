@@ -4,8 +4,6 @@
  * 高级 PDF/图像转换工具 (支持自动识别域名/IP)
  */
 
-// 1. 环境配置
-// 如果是 Windows XAMPP 环境，请确保以下路径正确
 $magickPath = 'C:\Program Files\ImageMagick-7.1.2-Q16';
 $gsPath = 'C:\Program Files\gs\gs10.04.1\bin';
 
@@ -15,59 +13,73 @@ if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
 
 $message = "";
 
-// 2. 处理转换逻辑
 if (isset($_POST["submit"])) {
     if (isset($_FILES["fileToUpload"]) && $_FILES["fileToUpload"]["error"] == 0) {
-
         $tempFile = $_FILES["fileToUpload"]["tmp_name"];
         $targetFormat = $_POST["targetFormat"];
         $extension = pathinfo($_FILES["fileToUpload"]["name"], PATHINFO_EXTENSION);
-
-        // 生成唯一文件名
-        $fileNameOnly = 'converted_' . time();
-        $outputFileName = $fileNameOnly . '.' . $targetFormat;
-        $savePath = __DIR__ . DIRECTORY_SEPARATOR . $outputFileName;
+        $outputFileName = 'converted_' . time() . '.' . $targetFormat;
 
         try {
             if (!class_exists('Imagick')) {
-                throw new Exception("Imagick extension is not installed or enabled on the server.");
+                throw new Exception("Imagick not install。");
             }
 
             $image = new Imagick();
 
-            // 针对 PDF 的特殊处理
+            // 如果是 PDF，设置分辨率以保证清晰度
             if (strtolower($extension) === 'pdf') {
                 $image->setResolution(150, 150);
-                // [0] 表示只转第一页，如需全转请删除 [0] 并循环处理
-                $image->readImage(realpath($tempFile) . '[0]');
-            } else {
-                $image->readImage(realpath($tempFile));
             }
 
-            // 防止透明背景变黑色
+            // 读取完整文件
+            $image->readImage(realpath($tempFile));
+
+            // --- 关键点：处理多页面 PDF ---
+            if (strtolower($targetFormat) !== 'pdf' && $image->getNumberImages() > 1) {
+                // 1. 重置迭代器到第一页
+                $image->setFirstIterator();
+
+                // 2. 将所有页面垂直拼接 (true = 垂直, false = 水平)
+                // appendImages 会返回一个新的对象
+                $combined = $image->appendImages(true);
+
+                // 3. 释放旧的多页资源，替换为合并后的单页
+                $image->clear();
+                $image->destroy();
+                $image = $combined;
+            } else {
+                // 如果是单页或者目标仍为 PDF，执行常规合并
+                $image = $image->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
+            }
+
+            // 设置背景颜色（防止 PNG 透明层变黑）
             $image->setImageBackgroundColor('white');
-            $image = $image->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
+            $image->setImageAlphaChannel(Imagick::ALPHACHANNEL_REMOVE); // 移除透明通道，强制白底
+
             $image->setImageFormat($targetFormat);
 
-            if ($image->writeImage($savePath)) {
-                // --- 动态获取当前访问地址 (核心修改) ---
-                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
-                $host = $_SERVER['HTTP_HOST']; // 获取域名或 IP (例如 192.168.1.5 或 www.test.com)
-                $uri = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
-                $downloadUrl = $protocol . $host . $uri . '/' . $outputFileName;
+            // 获取二进制流
+            $fileData = $image->getImagesBlob();
 
-                $message = "<div style='color:green;'>Successful!<br>
-                            <a href='$downloadUrl' target='_blank' style='font-weight:bold; color:#007bff;'>Click here to download: $outputFileName</a><br>
-                            <small>Access URL: $downloadUrl</small></div>";
-            }
-
+            // 清理
             $image->clear();
             $image->destroy();
+
+            // 发送下载头
+            header('Content-Description: File Transfer');
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="' . $outputFileName . '"');
+            header('Content-Transfer-Encoding: binary');
+            header('Content-Length: ' . strlen($fileData));
+
+            echo $fileData;
+            exit;
         } catch (Exception $e) {
             $message = "<div style='color:red;'>Error： " . $e->getMessage() . "</div>";
         }
     } else {
-        $message = "<div style='color:red;'>Please upload a valid file.</div>";
+        $message = "<div style='color:red;'>PLease Uplolad Valid File.。</div>";
     }
 }
 ?>
@@ -135,7 +147,7 @@ if (isset($_POST["submit"])) {
         }
 
         input[type="submit"]:hover {
-            background: lightgray;
+            background: #333;
         }
 
         .result {
@@ -149,7 +161,6 @@ if (isset($_POST["submit"])) {
 </head>
 
 <body>
-
     <div class="container">
         <h2>Convert</h2>
         <form action="" method="post" enctype="multipart/form-data">
@@ -172,7 +183,6 @@ if (isset($_POST["submit"])) {
             </div>
         <?php endif; ?>
     </div>
-
 </body>
 
 </html>
