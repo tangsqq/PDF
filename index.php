@@ -120,7 +120,8 @@ if (isset($_POST["submit"])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Convert</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📑</text></svg>">
+    <title>Convert File</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -192,7 +193,7 @@ if (isset($_POST["submit"])) {
 
 <body>
     <div class="container">
-        <h2>Convert</h2>
+        <h2>Convert File</h2>
         <form action="" method="post" enctype="multipart/form-data">
             <label>Choose File</label>
             <input type="file" name="fileToUpload" required>
@@ -216,3 +217,4 @@ if (isset($_POST["submit"])) {
 </body>
 
 </html>
+
