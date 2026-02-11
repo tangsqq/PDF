@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 高级 PDF/图像转换工具 (支持分页打包 ZIP 下载)
  */
@@ -38,9 +39,11 @@ if (isset($_POST["submit"])) {
             // --- 情况 1: 如果是单页或者是转换 PDF，保持原逻辑直接输出 ---
             if ($numPages <= 1 || strtolower($targetFormat) === 'pdf') {
                 $image = new Imagick();
-                if (strtolower($extension) === 'pdf') { $image->setResolution(150, 150); }
+                if (strtolower($extension) === 'pdf') {
+                    $image->setResolution(150, 150);
+                }
                 $image->readImage(realpath($tempFile));
-                
+
                 $image->setImageBackgroundColor('white');
                 $image->setImageAlphaChannel(Imagick::ALPHACHANNEL_REMOVE);
                 $image = $image->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
@@ -54,7 +57,7 @@ if (isset($_POST["submit"])) {
                 header('Content-Disposition: attachment; filename="' . $outputFileName . '"');
                 echo $fileData;
                 exit;
-            } 
+            }
             // --- 情况 2: 多页 PDF 转单张图片 (核心改动：ZIP 打包) ---
             else {
                 if (!class_exists('ZipArchive')) {
@@ -63,26 +66,29 @@ if (isset($_POST["submit"])) {
 
                 $zip = new ZipArchive();
                 $zipFileName = 'converted_pages_' . $timestamp . '.zip';
+                // Docker/Linux 环境下使用系统临时目录
                 $zipPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $zipFileName;
 
                 if ($zip->open($zipPath, ZipArchive::CREATE) !== TRUE) {
                     throw new Exception("无法创建压缩文件。");
                 }
 
-                // 核心：逐页读取并转换，防止长图导致的内存溢出和转圈
+                // 核心：逐页读取并转换，150 DPI 高清设置
                 for ($i = 0; $i < $numPages; $i++) {
                     $page = new Imagick();
-                    $page->setResolution(120, 120); // 略微调低分辨率确保速度
+                    // 设置高清 150 DPI
+                    $page->setResolution(150, 150);
                     $page->readImage(realpath($tempFile) . '[' . $i . ']'); // 只读第 i 页
-                    
+
                     $page->setImageBackgroundColor('white');
                     $page->setImageAlphaChannel(Imagick::ALPHACHANNEL_REMOVE);
                     $page->setImageFormat($targetFormat);
                     $single = $page->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
-                    
+
                     // 将每一页添加进 ZIP
                     $zip->addFromString("page_" . ($i + 1) . "." . $targetFormat, $single->getImagesBlob());
-                    
+
+                    // 彻底释放内存
                     $single->clear();
                     $single->destroy();
                     $page->clear();
@@ -99,7 +105,6 @@ if (isset($_POST["submit"])) {
                 @unlink($zipPath);
                 exit;
             }
-
         } catch (Exception $e) {
             $message = "<div style='color:red;'>Error： " . $e->getMessage() . "</div>";
         }
